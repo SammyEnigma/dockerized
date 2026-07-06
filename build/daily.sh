@@ -7,8 +7,8 @@
 # target fails to build.
 #
 # Cron (host-config/crontabs/eilander.crontab), 12:00 UTC via CRON_TZ=UTC:
-#   0 12 * * *  /opt/packages/eilandert/dockerized/build/daily.sh \
-#                 >>/opt/packages/log/dockerized-daily.log 2>&1
+#   0 12 * * *  /opt/myguard/dockerized/build/daily.sh \
+#                 >>/opt/myguard/packages/log/dockerized-daily.log 2>&1
 #
 # Manual dry run (no push):  PUSH=0 ./build/daily.sh
 
@@ -16,7 +16,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-DISCORD="/opt/packages/tools/discord-notify.py"
+DISCORD="/opt/myguard/tools/discord-notify.py"
 LOCK="/tmp/dockerized-daily.lock"
 
 cd "$REPO_DIR" || exit 1
@@ -88,7 +88,7 @@ echo "$SUMMARY"
 if [[ "$RC" -ne 0 ]]; then
     BODY="$(printf '%s\n' "$SUMMARY")"
     [[ -n "$FAIL_LIST" ]] && BODY="$(printf '%s\n\n**Build failures:**\n%s' "$BODY" "$FAIL_LIST")"
-    BODY="$(printf '%s\n\nrev %s · full log on build host: /opt/packages/log/dockerized-daily.log' "$BODY" "$VCS_REF")"
+    BODY="$(printf '%s\n\nrev %s · full log on build host: /opt/myguard/packages/log/dockerized-daily.log' "$BODY" "$VCS_REF")"
     python3 "$DISCORD" message "🐳 dockerized daily: build failures" "$BODY" || true
 else
     echo "[daily] all targets built + pushed — no alert"
