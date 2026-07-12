@@ -124,6 +124,13 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$SCRIPT_DIR"
 cd "$PROJECT_ROOT"
 
+# Fail fast if the PHP list in config.sh and docker-bake.hcl's PHP_MATRIX have
+# drifted — otherwise the matrix would build a version the Dockerfiles lack (or
+# vice versa) 90 minutes into the run. Skip gracefully if the check is absent.
+if [[ -x "$SCRIPT_DIR/check-matrix-sync.sh" ]]; then
+    "$SCRIPT_DIR/check-matrix-sync.sh"
+fi
+
 # Persistent build cache directory - shared across all targets and runs
 DEFAULT_CACHE_ROOT="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}"
 CACHE_DIR="${BUILDX_CACHE_DIR:-$DEFAULT_CACHE_ROOT/dockerized-buildx}"

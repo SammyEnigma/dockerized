@@ -30,6 +30,93 @@ target "_meta" {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Generated web/php-fpm targets (bake matrix)
+#
+# The 48 per-(distro x PHP-version) targets for php-fpm, nginx, angie and
+# apache are mechanical over {ubuntu,debian} x {5.6,7.4,8.0,8.2,8.4,8.5}, so
+# they are expressed as bake `matrix` targets instead of 48 hand-written
+# blocks. The `name` attribute reproduces the exact previous target names
+# (e.g. ubuntu-nginx-php84). The `multi` variants and the bare (no-PHP)
+# nginx/angie targets are irregular (naming + tags) and stay hand-written.
+#
+# IMPORTANT: PHP_MATRIX below must stay in sync with PHP_VERSIONS in
+# build/config.sh (which drives Dockerfile generation). Keep both equal;
+# build/check-matrix-sync.sh asserts it.
+# ---------------------------------------------------------------------------
+
+variable "PHP_MATRIX" {
+  default = [
+    { v = "5.6", nn = "56" },
+    { v = "7.4", nn = "74" },
+    { v = "8.0", nn = "80" },
+    { v = "8.2", nn = "82" },
+    { v = "8.4", nn = "84" },
+    { v = "8.5", nn = "85" },
+  ]
+}
+
+variable "DISTRO_MATRIX" {
+  default = [
+    { distro = "ubuntu", pfx = "",     dsuf = "ubu", base = "ubuntu-base", basetag = "docker.io/eilandert/ubuntu-base:rolling" },
+    { distro = "debian", pfx = "deb-", dsuf = "deb", base = "debian-base", basetag = "docker.io/eilandert/debian-base:stable" },
+  ]
+}
+
+target "gen-phpfpm" {
+  name = "${tgt.distro}-phpfpm${php.nn}"
+  matrix = { tgt = DISTRO_MATRIX, php = PHP_MATRIX }
+  inherits = ["_meta"]
+  context = "src/php-fpm"
+  dockerfile = "Dockerfile-${php.nn}-${tgt.dsuf}"
+  tags = php.nn == "80" ? [
+    "docker.io/eilandert/php-fpm:${tgt.pfx}${php.v}",
+    "docker.io/eilandert/php-fpm:${tgt.pfx}latest",
+  ] : [
+    "docker.io/eilandert/php-fpm:${tgt.pfx}${php.v}",
+  ]
+  contexts = { "${tgt.basetag}" = "target:${tgt.base}" }
+}
+
+target "gen-nginx-php" {
+  name = "${tgt.distro}-nginx-php${php.nn}"
+  matrix = { tgt = DISTRO_MATRIX, php = PHP_MATRIX }
+  inherits = ["_meta"]
+  context = "src/nginx"
+  dockerfile = "Dockerfile-php${php.nn}-${tgt.dsuf}"
+  tags = [
+    "docker.io/eilandert/nginx-modsecurity3-pagespeed:${tgt.pfx}php${php.v}",
+    "docker.io/eilandert/nginx:${tgt.pfx}php${php.v}",
+  ]
+  contexts = { "docker.io/eilandert/php-fpm:${tgt.pfx}${php.v}" = "target:${tgt.distro}-phpfpm${php.nn}" }
+}
+
+target "gen-angie-php" {
+  name = "${tgt.distro}-angie-php${php.nn}"
+  matrix = { tgt = DISTRO_MATRIX, php = PHP_MATRIX }
+  inherits = ["_meta"]
+  context = "src/angie"
+  dockerfile = "Dockerfile-php${php.nn}-${tgt.dsuf}"
+  tags = ["docker.io/eilandert/angie:${tgt.pfx}php${php.v}"]
+  contexts = { "docker.io/eilandert/php-fpm:${tgt.pfx}${php.v}" = "target:${tgt.distro}-phpfpm${php.nn}" }
+}
+
+target "gen-apache" {
+  name = "${tgt.distro}-apache-php${php.nn}"
+  matrix = { tgt = DISTRO_MATRIX, php = PHP_MATRIX }
+  inherits = ["_meta"]
+  context = "src/apache-phpfpm"
+  dockerfile = "Dockerfile-${php.nn}-${tgt.dsuf}"
+  tags = php.nn == "80" ? [
+    "docker.io/eilandert/apache-phpfpm:${tgt.pfx}${php.v}",
+    "docker.io/eilandert/apache-phpfpm:${tgt.pfx}latest",
+  ] : [
+    "docker.io/eilandert/apache-phpfpm:${tgt.pfx}${php.v}",
+  ]
+  contexts = { "docker.io/eilandert/php-fpm:${tgt.pfx}${php.v}" = "target:${tgt.distro}-phpfpm${php.nn}" }
+}
+
+
 group "default" {
     targets = ["ubuntu-base", "debian-base"]
 }
@@ -292,102 +379,6 @@ target "debian-base" {
     tags = ["docker.io/eilandert/debian-base:stable"]
 }
 
-target "ubuntu-phpfpm56" {
-    tags = ["docker.io/eilandert/php-fpm:5.6"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-56-ubu"
-    inherits = ["ubuntu-base", "_meta"]
-    contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "debian-phpfpm56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:deb-5.6"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-56-deb"
-    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
-}
-
-target "ubuntu-phpfpm74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:7.4"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-74-ubu"
-    contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "debian-phpfpm74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:deb-7.4"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-74-deb"
-    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
-}
-
-target "ubuntu-phpfpm80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:8.0", "docker.io/eilandert/php-fpm:latest"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-80-ubu"
-    contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "debian-phpfpm80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:deb-8.0", "docker.io/eilandert/php-fpm:deb-latest"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-80-deb"
-    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
-}
-
-target "ubuntu-phpfpm82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:8.2"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-82-ubu"
-    contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "debian-phpfpm82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:deb-8.2"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-82-deb"
-    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
-}
-
-target "ubuntu-phpfpm84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:8.4"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-84-ubu"
-    contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "debian-phpfpm84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:deb-8.4"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-84-deb"
-    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
-}
-
-target "ubuntu-phpfpm85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:8.5"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-85-ubu"
-    contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "debian-phpfpm85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/php-fpm:deb-8.5"]
-    context = "src/php-fpm"
-    dockerfile = "Dockerfile-85-deb"
-    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
-}
-
 target "ubuntu-multiphp" {
     inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:multi"]
@@ -436,102 +427,6 @@ target "ubuntu-nginx" {
     contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
 }
 
-target "ubuntu-nginx-php56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:php5.6", "docker.io/eilandert/nginx:php5.6"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php56-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:5.6" = "target:ubuntu-phpfpm56" }
-}
-
-target "debian-nginx-php56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:deb-php5.6", "docker.io/eilandert/nginx:deb-php5.6"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php56-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-5.6" = "target:debian-phpfpm56" }
-}
-
-target "ubuntu-nginx-php74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:php7.4", "docker.io/eilandert/nginx:php7.4"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php74-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:7.4" = "target:ubuntu-phpfpm74" }
-}
-
-target "debian-nginx-php74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:deb-php7.4", "docker.io/eilandert/nginx:deb-php7.4"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php74-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-7.4" = "target:debian-phpfpm74" }
-}
-
-target "ubuntu-nginx-php80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:php8.0", "docker.io/eilandert/nginx:php8.0"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php80-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.0" = "target:ubuntu-phpfpm80" }
-}
-
-target "debian-nginx-php80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:deb-php8.0", "docker.io/eilandert/nginx:deb-php8.0"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php80-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.0" = "target:debian-phpfpm80" }
-}
-
-target "ubuntu-nginx-php82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:php8.2", "docker.io/eilandert/nginx:php8.2"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php82-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.2" = "target:ubuntu-phpfpm82" }
-}
-
-target "debian-nginx-php82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:deb-php8.2", "docker.io/eilandert/nginx:deb-php8.2"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php82-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.2" = "target:debian-phpfpm82" }
-}
-
-target "ubuntu-nginx-php84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:php8.4", "docker.io/eilandert/nginx:php8.4"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php84-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.4" = "target:ubuntu-phpfpm84" }
-}
-
-target "debian-nginx-php84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:deb-php8.4", "docker.io/eilandert/nginx:deb-php8.4"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php84-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.4" = "target:debian-phpfpm84" }
-}
-
-target "ubuntu-nginx-php85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:php8.5", "docker.io/eilandert/nginx:php8.5"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php85-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.5" = "target:ubuntu-phpfpm85" }
-}
-
-target "debian-nginx-php85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:deb-php8.5", "docker.io/eilandert/nginx:deb-php8.5"]
-    context = "src/nginx"
-    dockerfile = "Dockerfile-php85-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.5" = "target:debian-phpfpm85" }
-}
-
 target "ubuntu-nginx-multi" {
     inherits = ["_meta"]
     tags = ["docker.io/eilandert/nginx-modsecurity3-pagespeed:multi", "docker.io/eilandert/nginx:multi"]
@@ -548,108 +443,12 @@ target "debian-nginx-multi" {
     contexts = { "docker.io/eilandert/php-fpm:deb-multi" = "target:debian-multiphp" }
 }
 
-target "debian-apache-php56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:deb-5.6"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-56-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-5.6" = "target:debian-phpfpm56" }
-}
-
-target "debian-apache-php74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:deb-7.4"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-74-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-7.4" = "target:debian-phpfpm74" }
-}
-
-target "debian-apache-php80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:deb-8.0", "docker.io/eilandert/apache-phpfpm:deb-latest"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-80-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.0" = "target:debian-phpfpm80" }
-}
-
-target "debian-apache-php82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:deb-8.2"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-82-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.2" = "target:debian-phpfpm82" }
-}
-
-target "debian-apache-php84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:deb-8.4"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-84-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.4" = "target:debian-phpfpm84" }
-}
-
-target "debian-apache-php85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:deb-8.5"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-85-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.5" = "target:debian-phpfpm85" }
-}
-
 target "debian-apache-multiphp" {
     inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-multi"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-multi-deb"
     contexts = { "docker.io/eilandert/php-fpm:deb-multi" = "target:debian-multiphp" }
-}
-
-target "ubuntu-apache-php56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:5.6"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-56-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:5.6" = "target:ubuntu-phpfpm56" }
-}
-
-target "ubuntu-apache-php74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:7.4"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-74-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:7.4" = "target:ubuntu-phpfpm74" }
-}
-
-target "ubuntu-apache-php80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:8.0", "docker.io/eilandert/apache-phpfpm:latest"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-80-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.0" = "target:ubuntu-phpfpm80" }
-}
-
-target "ubuntu-apache-php82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:8.2"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-82-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.2" = "target:ubuntu-phpfpm82" }
-}
-
-target "ubuntu-apache-php84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:8.4"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-84-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.4" = "target:ubuntu-phpfpm84" }
-}
-
-target "ubuntu-apache-php85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/apache-phpfpm:8.5"]
-    context = "src/apache-phpfpm"
-    dockerfile = "Dockerfile-85-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.5" = "target:ubuntu-phpfpm85" }
 }
 
 target "ubuntu-apache-multiphp" {
@@ -871,102 +670,6 @@ target "ubuntu-angie" {
     context = "src/angie"
     dockerfile = "Dockerfile-ubu"
     contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
-}
-
-target "ubuntu-angie-php56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:php5.6"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php56-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:5.6" = "target:ubuntu-phpfpm56" }
-}
-
-target "debian-angie-php56" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:deb-php5.6"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php56-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-5.6" = "target:debian-phpfpm56" }
-}
-
-target "ubuntu-angie-php74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:php7.4"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php74-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:7.4" = "target:ubuntu-phpfpm74" }
-}
-
-target "debian-angie-php74" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:deb-php7.4"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php74-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-7.4" = "target:debian-phpfpm74" }
-}
-
-target "ubuntu-angie-php80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:php8.0"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php80-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.0" = "target:ubuntu-phpfpm80" }
-}
-
-target "debian-angie-php80" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:deb-php8.0"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php80-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.0" = "target:debian-phpfpm80" }
-}
-
-target "ubuntu-angie-php82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:php8.2"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php82-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.2" = "target:ubuntu-phpfpm82" }
-}
-
-target "debian-angie-php82" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:deb-php8.2"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php82-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.2" = "target:debian-phpfpm82" }
-}
-
-target "ubuntu-angie-php84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:php8.4"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php84-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.4" = "target:ubuntu-phpfpm84" }
-}
-
-target "debian-angie-php84" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:deb-php8.4"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php84-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.4" = "target:debian-phpfpm84" }
-}
-
-target "ubuntu-angie-php85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:php8.5"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php85-ubu"
-    contexts = { "docker.io/eilandert/php-fpm:8.5" = "target:ubuntu-phpfpm85" }
-}
-
-target "debian-angie-php85" {
-    inherits = ["_meta"]
-    tags = ["docker.io/eilandert/angie:deb-php8.5"]
-    context = "src/angie"
-    dockerfile = "Dockerfile-php85-deb"
-    contexts = { "docker.io/eilandert/php-fpm:deb-8.5" = "target:debian-phpfpm85" }
 }
 
 target "ubuntu-angie-multi" {
