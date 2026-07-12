@@ -19,6 +19,11 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 DISCORD="/opt/myguard/tools/discord-notify.py"
 LOCK="/tmp/dockerized-daily.lock"
 
+# Shared mailstrix release-version resolution (gh -> git fallback), also used by
+# buildx-sequential.sh — single source of truth.
+# shellcheck source=lib-release.sh
+source "$SCRIPT_DIR/lib-release.sh"
+
 cd "$REPO_DIR" || exit 1
 
 # --- single-run guard ----------------------------------------------------------
@@ -44,31 +49,17 @@ echo "[daily] PUSH=$PUSH"
 # --- supply-chain provenance (consumed by docker-bake.hcl _meta) ---------------
 export VCS_REF="$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-# yarad's own source version (its submodule, not the dockerized superrepo) for
-# its main.version ldflag / /version endpoint.
-export MAILSTRIX_VERSION="$(git -C "$REPO_DIR/src/mailstrix" describe --tags --always 2>/dev/null || echo dev)"
-# The tag of the LATEST *published GitHub release* — Dockerfile.release curls the
-# per-arch binaries from it, so it must be a release that actually has assets.
-# Ask GitHub directly (gh) instead of git describe: a git tag can exist locally
-# (or be pushed) before its release is published, and HEAD is often ahead of the
-# nearest release tag — both cases made describe point at a tag with no assets,
-# so the daily build 404'd (e.g. 2026-06-30: cron ran 12:00 UTC, v1.2.0 release
-# published 21:56). gh release view --latest always tracks the real release.
-export MAILSTRIX_RELEASE="$(gh release view --repo eilandert/mailstrix --json tagName -q .tagName 2>/dev/null | sed 's/^v//')"
-# Fallback to the nearest git tag if gh is unavailable (no network/auth).
+# mailstrix source version (tag+commit) for its main.version ldflag / /version
+# endpoint, and the published-release tag Dockerfile.release pulls per-arch
+# binaries from. Both via lib-release.sh (gh -> git fallback, see the race
+# fixed 2026-06-30). If the release tag comes back empty, buildx-sequential.sh
+# skips the mailstrix target itself (empty VERSION would trip its build guard),
+# so no SKIP flag needs threading through here — just warn for visibility.
+export MAILSTRIX_VERSION="$(mailstrix_source_version "$REPO_DIR/src/mailstrix")"
+export MAILSTRIX_RELEASE="$(resolve_mailstrix_release "$REPO_DIR/src/mailstrix")"
 [[ -z "$MAILSTRIX_RELEASE" ]] && \
-    export MAILSTRIX_RELEASE="$(git -C "$REPO_DIR/src/mailstrix" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "")"
-# If BOTH gh and git describe came back empty (gh unauth/rate-limited AND no local
-# tag), do NOT invoke the mailstrix target with an empty VERSION build-arg —
-# Dockerfile.release's `test -n "${VERSION}"` guard would abort mid-build and mark
-# the whole daily run failed. Fail loud, skip mailstrix, let the rest build.
-SKIP_MAILSTRIX=""
-if [[ -z "$MAILSTRIX_RELEASE" ]]; then
-    echo "[daily] WARN: could not resolve MAILSTRIX_RELEASE (gh + git describe both empty) — skipping debian-mailstrix this run" >&2
-    SKIP_MAILSTRIX=1
-    export SKIP_MAILSTRIX
-fi
-echo "[daily] VCS_REF=$VCS_REF BUILD_DATE=$BUILD_DATE MAILSTRIX_VERSION=$MAILSTRIX_VERSION MAILSTRIX_RELEASE=$MAILSTRIX_RELEASE SKIP_MAILSTRIX=${SKIP_MAILSTRIX:-0}"
+    echo "[daily] WARN: could not resolve MAILSTRIX_RELEASE (gh + git describe both empty) — debian-mailstrix will be skipped this run" >&2
+echo "[daily] VCS_REF=$VCS_REF BUILD_DATE=$BUILD_DATE MAILSTRIX_VERSION=$MAILSTRIX_VERSION MAILSTRIX_RELEASE=$MAILSTRIX_RELEASE"
 
 # --- run the orchestrator, capturing output for the summary --------------------
 RUN_LOG="$(mktemp /tmp/dockerized-daily-run.XXXXXX.log)"

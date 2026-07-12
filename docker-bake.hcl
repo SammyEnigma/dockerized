@@ -12,12 +12,21 @@ variable "MAILSTRIX_VERSION" { default = "dev" }
 # from this tag and tags the image with it. Must name a release that has assets.
 variable "MAILSTRIX_RELEASE" { default = "" }
 
-# Shared metadata args. Targets inherit this to receive VCS_REF / BUILD_DATE
-# without repeating the args block.
+# Shared metadata. Targets inherit this to receive VCS_REF / BUILD_DATE both as
+# build-args (for Dockerfiles that bake them into their own LABEL block, e.g.
+# nginx/angie) AND as buildkit-applied OCI labels (revision/created), so EVERY
+# inheriting image carries provenance even when its Dockerfile has no LABEL for
+# it. The `labels` map is stamped at build time by buildkit regardless of the
+# Dockerfile — no per-image ARG/LABEL edit needed.
 target "_meta" {
     args = {
         VCS_REF    = "${VCS_REF}"
         BUILD_DATE = "${BUILD_DATE}"
+    }
+    labels = {
+        "org.opencontainers.image.revision" = "${VCS_REF}"
+        "org.opencontainers.image.created"  = "${BUILD_DATE}"
+        "org.opencontainers.image.source"   = "https://github.com/myguard-labs/dockerized"
     }
 }
 
@@ -226,6 +235,7 @@ group "misc" {
 }
 
 target "debian-angie-cms" {
+    inherits = ["_meta"]
     dockerfile = "Dockerfile-deb"
     context = "src/docker-cms"
     # :debian-s6 is the tag the deployed myguard stack pins (docker-compose.yml).
@@ -238,12 +248,14 @@ target "debian-angie-cms" {
 }
 
 target "ubuntu-base" {
+    inherits = ["_meta"]
     dockerfile = "Dockerfile-ubuntu-base"
     context = "src/base"
     tags = ["docker.io/eilandert/ubuntu-base:rolling"]
 }
 
 target "debian-base" {
+    inherits = ["_meta"]
     dockerfile = "Dockerfile-debian-base"
     context = "src/base"
     tags = ["docker.io/eilandert/debian-base:stable"]
@@ -253,11 +265,12 @@ target "ubuntu-phpfpm56" {
     tags = ["docker.io/eilandert/php-fpm:5.6"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-56-ubu"
-    inherits = ["ubuntu-base"]
+    inherits = ["ubuntu-base", "_meta"]
     contexts = { "docker.io/eilandert/ubuntu-base:rolling" = "target:ubuntu-base" }
 }
 
 target "debian-phpfpm56" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-5.6"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-56-deb"
@@ -265,6 +278,7 @@ target "debian-phpfpm56" {
 }
 
 target "ubuntu-phpfpm74" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:7.4"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-74-ubu"
@@ -272,6 +286,7 @@ target "ubuntu-phpfpm74" {
 }
 
 target "debian-phpfpm74" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-7.4"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-74-deb"
@@ -279,6 +294,7 @@ target "debian-phpfpm74" {
 }
 
 target "ubuntu-phpfpm80" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:8.0", "docker.io/eilandert/php-fpm:latest"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-80-ubu"
@@ -286,6 +302,7 @@ target "ubuntu-phpfpm80" {
 }
 
 target "debian-phpfpm80" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-8.0", "docker.io/eilandert/php-fpm:deb-latest"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-80-deb"
@@ -293,6 +310,7 @@ target "debian-phpfpm80" {
 }
 
 target "ubuntu-phpfpm82" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:8.2"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-82-ubu"
@@ -300,6 +318,7 @@ target "ubuntu-phpfpm82" {
 }
 
 target "debian-phpfpm82" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-8.2"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-82-deb"
@@ -307,6 +326,7 @@ target "debian-phpfpm82" {
 }
 
 target "ubuntu-phpfpm84" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:8.4"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-84-ubu"
@@ -314,6 +334,7 @@ target "ubuntu-phpfpm84" {
 }
 
 target "debian-phpfpm84" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-8.4"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-84-deb"
@@ -321,6 +342,7 @@ target "debian-phpfpm84" {
 }
 
 target "ubuntu-phpfpm85" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:8.5"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-85-ubu"
@@ -328,6 +350,7 @@ target "ubuntu-phpfpm85" {
 }
 
 target "debian-phpfpm85" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-8.5"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-85-deb"
@@ -335,6 +358,7 @@ target "debian-phpfpm85" {
 }
 
 target "ubuntu-multiphp" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:multi"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-multi-ubu"
@@ -342,6 +366,7 @@ target "ubuntu-multiphp" {
 }
 
 target "debian-multiphp" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/php-fpm:deb-multi"]
     context = "src/php-fpm"
     dockerfile = "Dockerfile-multi-deb"
@@ -349,6 +374,7 @@ target "debian-multiphp" {
 }
 
 target "debian-mariadb" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/mariadb:debian", "docker.io/eilandert/mariadb:latest"]
     context = "src/mariadb"
     dockerfile = "Dockerfile-deb"
@@ -356,6 +382,7 @@ target "debian-mariadb" {
 }
 
 target "ubuntu-mariadb" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/mariadb:ubuntu"]
     context = "src/mariadb"
     dockerfile = "Dockerfile-ubu"
@@ -491,6 +518,7 @@ target "debian-nginx-multi" {
 }
 
 target "debian-apache-php56" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-5.6"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-56-deb"
@@ -498,6 +526,7 @@ target "debian-apache-php56" {
 }
 
 target "debian-apache-php74" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-7.4"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-74-deb"
@@ -505,6 +534,7 @@ target "debian-apache-php74" {
 }
 
 target "debian-apache-php80" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-8.0", "docker.io/eilandert/apache-phpfpm:deb-latest"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-80-deb"
@@ -512,6 +542,7 @@ target "debian-apache-php80" {
 }
 
 target "debian-apache-php82" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-8.2"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-82-deb"
@@ -519,6 +550,7 @@ target "debian-apache-php82" {
 }
 
 target "debian-apache-php84" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-8.4"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-84-deb"
@@ -526,6 +558,7 @@ target "debian-apache-php84" {
 }
 
 target "debian-apache-php85" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-8.5"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-85-deb"
@@ -533,6 +566,7 @@ target "debian-apache-php85" {
 }
 
 target "debian-apache-multiphp" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:deb-multi"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-multi-deb"
@@ -540,6 +574,7 @@ target "debian-apache-multiphp" {
 }
 
 target "ubuntu-apache-php56" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:5.6"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-56-ubu"
@@ -547,6 +582,7 @@ target "ubuntu-apache-php56" {
 }
 
 target "ubuntu-apache-php74" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:7.4"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-74-ubu"
@@ -554,6 +590,7 @@ target "ubuntu-apache-php74" {
 }
 
 target "ubuntu-apache-php80" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:8.0", "docker.io/eilandert/apache-phpfpm:latest"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-80-ubu"
@@ -561,6 +598,7 @@ target "ubuntu-apache-php80" {
 }
 
 target "ubuntu-apache-php82" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:8.2"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-82-ubu"
@@ -568,6 +606,7 @@ target "ubuntu-apache-php82" {
 }
 
 target "ubuntu-apache-php84" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:8.4"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-84-ubu"
@@ -575,6 +614,7 @@ target "ubuntu-apache-php84" {
 }
 
 target "ubuntu-apache-php85" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:8.5"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-85-ubu"
@@ -582,6 +622,7 @@ target "ubuntu-apache-php85" {
 }
 
 target "ubuntu-apache-multiphp" {
+    inherits = ["_meta"]
     tags = ["docker.io/eilandert/apache-phpfpm:multi"]
     context = "src/apache-phpfpm"
     dockerfile = "Dockerfile-multi-ubu"
@@ -591,6 +632,7 @@ target "ubuntu-apache-multiphp" {
 
 
 target "debian-dovecot" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/dovecot:debian", "docker.io/eilandert/dovecot:latest"]
    context = "src/dovecot-ubuntu"
    dockerfile = "Dockerfile-deb"
@@ -598,12 +640,14 @@ target "debian-dovecot" {
 }
 
 target "alpine-letsencrypt" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/letsencrypt"]
    context = "src/letsencrypt"
    dockerfile = "Dockerfile"
 }
 
 target "ubuntu-postfix" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/postfix:ubuntu", "docker.io/eilandert/postfix:latest"]
    context = "src/postfix"
    dockerfile = "Dockerfile-ubu"
@@ -611,6 +655,7 @@ target "ubuntu-postfix" {
 }
 
 target "debian-postfix" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/postfix:debian"]
    context = "src/postfix"
    dockerfile = "Dockerfile-deb"
@@ -618,12 +663,14 @@ target "debian-postfix" {
 }
 
 target "rbldnsd" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rbldnsd"]
    context = "src/rbldnsd"
    dockerfile = "Dockerfile"
 }
 
 target "ubuntu-valkey" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/valkey:ubuntu"]
    context = "src/valkey"
    dockerfile = "Dockerfile-ubu"
@@ -631,6 +678,7 @@ target "ubuntu-valkey" {
 }
 
 target "debian-valkey" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/valkey:debian"]
    context = "src/valkey"
    dockerfile = "Dockerfile-deb"
@@ -638,6 +686,7 @@ target "debian-valkey" {
 }
 
 target "ubuntu-reprepro" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/reprepro"]
    context = "src/reprepro"
    dockerfile = "Dockerfile-ubu"
@@ -645,6 +694,7 @@ target "ubuntu-reprepro" {
 }
 
 target "debian-roundcube" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/roundcube:debian", "docker.io/eilandert/roundcube:latest"]
    context = "src/roundcube"
    dockerfile = "Dockerfile"
@@ -660,30 +710,35 @@ target "debian-roundcube" {
 # the PRIVATE eilandert/webtest repo. Context lives outside the repo, so the
 # build relies on BUILDX_BAKE_ENTITLEMENTS_FS=0 (set in buildx-sequential.sh).
 target "debian-webtest" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/webtest:debian", "docker.io/eilandert/webtest:latest"]
    context = "../webtester"
    dockerfile = "Dockerfile"
 }
 
 target "debian-rspamd-git" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rspamd-git:latest"]
    context = "src/rspamd-git"
    dockerfile = "Dockerfile-deb-git"
    contexts = { "eilandert/debian-base:stable" = "target:debian-base" }
 }
 target "debian-rspamd-official" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rspamd-git:official"]
    context = "src/rspamd-git"
    dockerfile = "Dockerfile-deb-official"
 }
 
 target "debian-rspamd" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rspamd-git:debian", "docker.io/eilandert/rspamd-git:release"]
    context = "src/rspamd-git"
    dockerfile = "Dockerfile-deb"
    contexts = { "eilandert/debian-base:stable" = "target:debian-base" }
 }
 target "ubuntu-rspamd" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rspamd-git:ubuntu"]
    context = "src/rspamd-git"
    dockerfile = "Dockerfile-ubu"
@@ -695,6 +750,7 @@ target "ubuntu-rspamd" {
 # clone + `git submodule update --init` builds it). A single static Go binary on
 # a distroless base — no debian-base dependency.
 target "debian-rspamd-drp" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rspamd-dcc-razor-pyzor:debian", "docker.io/eilandert/rspamd-dcc-razor-pyzor:latest"]
    context = "src/rspamd-dcc-razor-pyzor/docker"
    dockerfile = "Dockerfile-deb"
@@ -706,17 +762,19 @@ target "debian-rspamd-drp" {
 # rebuild re-pull the latest. Built from the repo ROOT context (the Dockerfile
 # COPYs docker/olefyd.py etc. from there), so context=src/rspamd-olefy.
 target "debian-olefied" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/rspamd-olefy:debian", "docker.io/eilandert/rspamd-olefy:latest"]
    context = "src/rspamd-olefy"
    dockerfile = "docker/Dockerfile"
    args = { CACHEBUST = "${BUILD_DATE}" }
 }
 # yarad — YARA scanner backend for rspamd (rspamd has no native YARA module).
-# Own git repo (eilandert/mailstrix), submodule at src/mailstrix. Go + libyara (CGO,
+# Own git repo (myguard-labs/mailstrix), submodule at src/mailstrix. Go + libyara (CGO,
 # static libyara), distroless. The image bakes public rulesets (YARA-Forge +
 # signature-base + ANY.RUN) at build time, so CACHEBUST=${BUILD_DATE} makes the
 # daily rebuild re-pull the latest rules. Built from the repo ROOT context.
 target "debian-mailstrix" {
+    inherits = ["_meta"]
    # Multi-arch from the GitHub release binaries (Dockerfile.release ADDs the
    # per-arch strixd/strix-scan by TARGETARCH, no Go/libyara compile under QEMU);
    # only the native yarac rules-compile runs emulated. The final image is
@@ -733,29 +791,27 @@ target "debian-mailstrix" {
    args = { CACHEBUST = "${BUILD_DATE}", VERSION = "${MAILSTRIX_RELEASE}" }
 }
 target "debian-sitewarmup" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/sitemap_warmup"]
    context = "src/sitemap_warmup"
    dockerfile = "Dockerfile-deb"
    contexts = { "eilandert/debian-base:stable" = "target:debian-base" }
 }
 target "alpine-unbound" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/unbound"]
    context = "src/unbound"
    dockerfile = "Dockerfile"
 }
 target "debian-vimbadmin" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/vimbadmin:debian", "docker.io/eilandert/vimbadmin:latest"]
    context = "src/vimbadmin"
    dockerfile = "Dockerfile"
    contexts = { "docker.io/eilandert/debian-base:stable" = "target:debian-base" }
 }
-target "psol" {
-   tags = ["docker.io/eilandert/psol"]
-   context = "src/psol-build"
-   dockerfile = "Dockerfile-ubu"
-}
-
 target "debian-openssh" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/openssh:debian"]
    context = "src/openssh"
    dockerfile = "Dockerfile-deb"
@@ -763,6 +819,7 @@ target "debian-openssh" {
 }
 
 target "aptly" {
+    inherits = ["_meta"]
    tags = ["docker.io/eilandert/aptly"]
    context = "src/aptly"
    dockerfile = "Dockerfile"

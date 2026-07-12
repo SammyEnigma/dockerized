@@ -52,7 +52,6 @@ dockerized/
     ├── aptly/  reprepro/           # APT repo tooling
     ├── letsencrypt/                # ACME client image
     ├── docker-cms/                 # CMS bundle
-    ├── psol-build/                 # PageSpeed Optimization Library compile env
     └── sitemap_warmup/             # support utility
 ```
 

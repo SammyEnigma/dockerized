@@ -12,6 +12,11 @@ set -e
 # See memory/eilandert/dockerized/issues.md (2026-06-11).
 export BUILDX_BAKE_ENTITLEMENTS_FS=0
 
+# Shared mailstrix release-version resolution (gh -> git fallback), also used by
+# daily.sh — single source of truth.
+# shellcheck source=lib-release.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-release.sh"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -226,9 +231,7 @@ for LAYER in "${LAYERS[@]}"; do
         # and only if BOTH fail skip the target cleanly instead of building broken.
         if [[ "$TARGET" == "debian-mailstrix" ]]; then
             if [[ -z "${MAILSTRIX_RELEASE:-}" ]]; then
-                MAILSTRIX_RELEASE="$(gh release view --repo eilandert/mailstrix --json tagName -q .tagName 2>/dev/null | sed 's/^v//')"
-                [[ -z "$MAILSTRIX_RELEASE" ]] && \
-                    MAILSTRIX_RELEASE="$(git -C "$PROJECT_ROOT/src/mailstrix" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')"
+                MAILSTRIX_RELEASE="$(resolve_mailstrix_release "$PROJECT_ROOT/src/mailstrix")"
                 export MAILSTRIX_RELEASE
             fi
             if [[ -z "$MAILSTRIX_RELEASE" ]]; then

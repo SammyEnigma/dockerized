@@ -1,6 +1,0 @@
-version: '2.4'
-services:
-  psol:
-    image: eilandert/psol
-    volumes:
-      - ./src:/usr/src
