@@ -43,6 +43,37 @@ group "base" {
 }
 
 # ---------------------------------------------------------------------------
+# Build layers — dependency tiers for the sequential daily build.
+# buildx-sequential.sh derives its LAYERS array from these groups, so
+# docker-bake.hcl is the single source of truth for what the daily builds.
+# Add a target to the right layer group and it is picked up automatically.
+# Keep the tiers dependency-ordered: base -> phpfpm/db -> web+php -> services.
+# The 7 explicit web targets below are the bare (no-PHP) servers + cms +
+# vimbadmin + roundcube that no family roll-up covers.
+# ---------------------------------------------------------------------------
+
+group "layer1-base" {
+    targets = ["base"]
+}
+
+group "layer2-phpfpm-db" {
+    targets = ["phpfpm", "db"]
+}
+
+group "layer3-webphp" {
+    targets = ["nginx-php", "angie-php", "apache"]
+}
+
+group "layer4-services" {
+    targets = [
+        "mail", "misc",
+        "debian-nginx", "ubuntu-nginx",
+        "debian-angie", "ubuntu-angie", "debian-angie-cms",
+        "debian-vimbadmin", "debian-roundcube",
+    ]
+}
+
+# ---------------------------------------------------------------------------
 # Per-family roll-ups (both OS)
 # ---------------------------------------------------------------------------
 

@@ -150,23 +150,38 @@ if [[ "${DOCKERIZED_PRUNE:-0}" == "1" ]]; then
     docker system prune -f -a 2>/dev/null || true
 fi
 
-# Define build targets organized by dependency layer
-# PHP versions built: 5.6, 7.4, 8.0, 8.2, 8.4, 8.5
-declare -a LAYERS=(
-    # Layer 1: Base images (2 targets) - FROM official upstream images only
-    "ubuntu-base debian-base"
-
-    # Layer 2: PHP-FPM and Databases - depends on base images
-    # Includes: 56, 74, 80, 82, 84, 85, multiphp, mariadb, valkey
-    "ubuntu-phpfpm56 debian-phpfpm56 ubuntu-phpfpm74 debian-phpfpm74 ubuntu-phpfpm80 debian-phpfpm80 ubuntu-phpfpm82 debian-phpfpm82 ubuntu-phpfpm84 debian-phpfpm84 ubuntu-phpfpm85 debian-phpfpm85 ubuntu-multiphp debian-multiphp ubuntu-mariadb debian-mariadb ubuntu-valkey debian-valkey"
-
-    # Layer 3: Web servers with PHP - depends on PHP-FPM
-    # Includes nginx/angie/apache with: 56, 74, 80, 82, 84, 85
-    "ubuntu-nginx-php56 debian-nginx-php56 ubuntu-nginx-php74 debian-nginx-php74 ubuntu-nginx-php80 debian-nginx-php80 ubuntu-nginx-php82 debian-nginx-php82 ubuntu-nginx-php84 debian-nginx-php84 ubuntu-nginx-php85 debian-nginx-php85 ubuntu-nginx-multi debian-nginx-multi ubuntu-angie-php56 debian-angie-php56 ubuntu-angie-php74 debian-angie-php74 ubuntu-angie-php80 debian-angie-php80 ubuntu-angie-php82 debian-angie-php82 ubuntu-angie-php84 debian-angie-php84 ubuntu-angie-php85 debian-angie-php85 ubuntu-angie-multi debian-angie-multi debian-apache-php56 debian-apache-php74 debian-apache-php80 debian-apache-php82 debian-apache-php84 debian-apache-php85 debian-apache-multiphp ubuntu-apache-php56 ubuntu-apache-php74 ubuntu-apache-php80 ubuntu-apache-php82 ubuntu-apache-php84 ubuntu-apache-php85 ubuntu-apache-multiphp"
-    
-    # Layer 4: Other web servers and services - depends on base images
-    "debian-nginx ubuntu-nginx debian-angie ubuntu-angie debian-angie-cms ubuntu-postfix debian-postfix debian-rspamd-git debian-rspamd debian-rspamd-official ubuntu-rspamd debian-rspamd-drp debian-olefied debian-mailstrix debian-dovecot debian-roundcube debian-webtest debian-vimbadmin ubuntu-reprepro debian-sitewarmup alpine-letsencrypt rbldnsd alpine-unbound aptly debian-openssh"
+# Build targets organized by dependency layer, DERIVED from the layer groups in
+# docker-bake.hcl (the single source of truth). Each `layerN-*` bake group lists
+# the targets/sub-groups for one dependency tier; we expand it to its leaf
+# targets with `bake --print`. Adding a target to a layer group in the HCL is all
+# that's needed to include it in the daily — no edit here.
+#   Layer 1: base images (FROM official upstream only)
+#   Layer 2: PHP-FPM (56/74/80/82/84/85/multi) + databases
+#   Layer 3: web servers WITH PHP (nginx/angie/apache × PHP versions)
+#   Layer 4: bare web servers + mail/db-less services
+declare -a LAYER_GROUPS=(
+    "layer1-base"
+    "layer2-phpfpm-db"
+    "layer3-webphp"
+    "layer4-services"
 )
+# Resolve a layer group to its leaf targets by walking the group tree in the
+# bake --print output. We must NOT use `.target | keys`: that also lists each
+# target's transitive build-context dependencies (e.g. nginx-php FROM phpfpm),
+# which would rebuild lower layers in the wrong tier. The `.group` map only
+# holds declared membership, so recursing group->group->target yields exactly
+# the tier's own targets.
+LAYER_LEAVES_JQ='.group as $g | def leaves($n): if ($g[$n]) then ($g[$n].targets[] | leaves(.)) else $n end; [leaves($root)] | unique | join(" ")'
+declare -a LAYERS=()
+for lg in "${LAYER_GROUPS[@]}"; do
+    layer_targets="$(docker buildx bake -f "$PROJECT_ROOT/docker-bake.hcl" --print "$lg" 2>/dev/null \
+        | jq -r --arg root "$lg" "$LAYER_LEAVES_JQ")"
+    if [[ -z "$layer_targets" ]]; then
+        log_error "Layer group '$lg' resolved to no targets — check docker-bake.hcl"
+        exit 1
+    fi
+    LAYERS+=("$layer_targets")
+done
 
 echo ""
 log_info "========================================="
