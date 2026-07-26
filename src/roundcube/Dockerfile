@@ -143,7 +143,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # `git@github.com:` (ssh) which fails in this credential-less build
     # (`Failed to clone the git@github.com:...`). A package/dist repo is a plain
     # https tarball download — no git, no ssh, deterministic.
-    composer config repositories.elastic4mobile '{"type":"package","package":{"name":"roundcube/elastic4mobile","version":"dev-master","type":"roundcube-plugin","dist":{"type":"tar","url":"https://github.com/eilandert/roundcube-elastic4mobile/archive/refs/heads/master.tar.gz"}}}' ;\
+    # NOTE: an inline `package` definition REPLACES the package's own metadata —
+    # composer never reads the composer.json inside the fetched tarball. So the
+    # fork's own `require` block is invisible to the solver and its deps are
+    # silently NOT installed. That shipped a broken image on 2026-07-26: the
+    # plugin files landed but `mobiledetect/mobiledetectlib` did not, and
+    # roundcube fatalled on every request with
+    # `Class "Detection\MobileDetect" not found` (HTTP 500, whole site down).
+    # Every dependency of the fork MUST therefore be mirrored here by hand —
+    # keep this `require` in sync with the fork's composer.json.
+    composer config repositories.elastic4mobile '{"type":"package","package":{"name":"roundcube/elastic4mobile","version":"dev-master","type":"roundcube-plugin","dist":{"type":"tar","url":"https://github.com/eilandert/roundcube-elastic4mobile/archive/refs/heads/master.tar.gz"},"require":{"php":">=7.3.0","roundcube/plugin-installer":">=0.1.3","mobiledetect/mobiledetectlib":"^4.8"}}}' ;\
     composer -n update --no-dev --no-scripts --no-autoloader ;\
     # All extra deps in ONE require: a single dependency solve instead of six.
     # (-W lets transitive constraints upgrade; --no-scripts skips package post
@@ -203,6 +212,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # Authoritative classmap: best runtime perf on a read-only image where the
     # code never changes (no per-request filesystem stat; -a implies --optimize).
     composer -n dump-autoload --classmap-authoritative --no-dev ;\
+    # ---- fail the build if an enabled plugin's classes are unresolvable ----
+    # A missing composer dep does NOT fail `require` (see the elastic4mobile
+    # note above) — it fails at RUNTIME on the first request, with the whole
+    # site returning HTTP 500. Assert the classes here so a broken image can
+    # never be pushed. Add a line per class an enabled plugin needs.
+    php -r 'require "vendor/autoload.php"; \
+        $need = ["Detection\\MobileDetect" => "mobiledetect/mobiledetectlib (elastic4mobile)"]; \
+        $bad = 0; \
+        foreach ($need as $cls => $pkg) { \
+            if (!class_exists($cls)) { fwrite(STDERR, "BUILD FAIL: class $cls missing — $pkg not installed\n"); $bad = 1; } \
+        } \
+        exit($bad);' ;\
     # ---- wire php-fpm config ----
     rm -f "/etc/php/${PHPVERSION}/fpm/pool.d/www.conf.dpkg-dist" ;\
     printf '\ninclude=/var/roundcube/config/phpfpm.conf.override\n' \
