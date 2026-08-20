@@ -88,14 +88,27 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     # expecting that path (and our $PATH override at the top) finds them. \
     ln -sf /usr/bin/composer /usr/local/bin/composer ;\
     ln -sf /usr/bin/wp       /usr/local/bin/wp ;\
-    php -r "copy('https://raw.githubusercontent.com/wp-cli/wp-cli/v2.9.0/utils/wp-completion.bash', '/etc/profile.d/wp-completion.sh');" ;\
-    chmod 0644 /etc/profile.d/wp-completion.sh ;\
+    # Shell completion for the admin. Non-fatal: a GitHub blip must not fail \
+    # the build (php copy()+chmod would abort under set -e if the fetch 404s). \
+    { curl -fsSL -o /etc/profile.d/wp-completion.sh \
+        https://raw.githubusercontent.com/wp-cli/wp-cli/v2.11.0/utils/wp-completion.bash \
+      && chmod 0644 /etc/profile.d/wp-completion.sh ; } \
+      || echo "[cms] wp-completion fetch failed — skipping (non-fatal)" ;\
     # wp-cli packages — pre-installed at build time so they're available \
     # even on a stateless container. doctor + profile are the two highest \
     # ROI for diagnosing slow/broken WP installs. \
     install -d -m 0755 /opt/wp-cli ;\
-    /usr/local/bin/wp --allow-root package install wp-cli/doctor-command:^1 || true ;\
-    /usr/local/bin/wp --allow-root package install wp-cli/profile-command:^1 || true ;\
+    # wp-cli's package installer resolves `pkg:^2` by cloning the repo as a VCS \
+    # source (it 404s trying "2" as a branch, then registers the git repo and \
+    # lets composer match ^2 against the real tags). That clone defaults to \
+    # git@github.com: (SSH) and dies "Host key verification failed" in the build \
+    # container — so force git onto anonymous HTTPS. Keep the :^2 constraint: \
+    # the bare `pkg` form instead hits the GitHub *API* to guess a default \
+    # branch, which 403-rate-limits unauthenticated and then guesses the wrong \
+    # (renamed) branch. The VCS clone is a plain git fetch — no API, no limit. \
+    git config --global url."https://github.com/".insteadOf "git@github.com:" ;\
+    /usr/local/bin/wp --allow-root package install wp-cli/doctor-command:^2 || true ;\
+    /usr/local/bin/wp --allow-root package install wp-cli/profile-command:^2 || true ;\
     chown -R phpfpm:www-data /opt/wp-cli ;\
     # ---- Drush (Drupal CLI) ---- \
     install -d -m 0755 /opt/drush ;\
@@ -138,7 +151,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         mkdir -p /etc/php ; \
     fi
 
-RUN chmod 0755 /etc/s6-overlay/s6-rc.d/cron/run /etc/s6-overlay/scripts/cms-init.sh
+# s6 run/up scripts arrive executable already: cron/run is +x in git (COPY
+# preserves the mode) and cms-init.sh was COPY'd with --chmod=0755 — so no
+# extra chmod layer is needed.
 
 WORKDIR /var/www
 

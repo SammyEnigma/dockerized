@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     set -ex ;\
     rm -f /etc/apt/apt.conf.d/docker-clean ;\
     apt-get -y update ;\
-    apt-get install -y --no-install-recommends apache2 apache2-utils libjemalloc2 mimalloc ;\
+    apt-get install -y --no-install-recommends apache2 apache2-utils libjemalloc2 libmimalloc3 ;\
     # autoindex   — silent directory listings when no DirectoryIndex matches \
     # negotiation — CVE-style file-extension fishing (foo.php.bak surfacing) \
     # Both are enabled by default on Debian/Ubuntu apache2; turn them off. \

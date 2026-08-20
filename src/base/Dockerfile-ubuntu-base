@@ -37,7 +37,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get install -y --no-install-recommends ssl-cert ;\
     echo "deb [signed-by=/usr/share/keyrings/deb.myguard.nl.gpg] http://deb.myguard.nl:8888 ${DIST} main" > /etc/apt/sources.list.d/deb.myguard.nl.list ;\
     apt-get -y update ;\
-    apt-get install -y --no-install-recommends ca-certificates tzdata libjemalloc2 mimalloc wait-for-it openssl ;\
+    apt-get install -y --no-install-recommends ca-certificates tzdata libjemalloc2 libmimalloc3 wait-for-it openssl ;\
     apt-get -y upgrade ;\
     apt-get purge -y --allow-remove-essential e2fsprogs libext2fs2 iproute2 ;\
     apt-get -y autoremove ;\
