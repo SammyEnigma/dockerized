@@ -535,14 +535,14 @@ target "debian-roundcube" {
    }
 }
 
-# Website-tester. Standalone project (own git repo at ../webtester), builds
+# Website-tester. Standalone project (own git repo at ../labs/webtester), builds
 # FROM debian:trixie-slim directly (no base-image target dependency). Pushes to
 # the PRIVATE eilandert/webtest repo. Context lives outside the repo, so the
 # build relies on BUILDX_BAKE_ENTITLEMENTS_FS=0 (set in buildx-sequential.sh).
 target "debian-webtest" {
     inherits = ["_meta"]
    tags = ["docker.io/eilandert/webtest:debian", "docker.io/eilandert/webtest:latest"]
-   context = "../webtester"
+   context = "../labs/webtester"
    dockerfile = "Dockerfile"
 }
 

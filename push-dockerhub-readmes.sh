@@ -4,12 +4,12 @@
 # Docker Hub has no README-write MCP; this uses the v2 REST API.
 #
 # PAT (scope Read & Write) lives gitignored, NOT in this file:
-#   /opt/packages/tools/.dockerhub-pat   (perms 0600)
+#   /opt/myguard/packages/tools/.dockerhub-pat   (perms 0600)
 # Generate at hub.docker.com -> Account Settings -> Personal access tokens.
 set -euo pipefail
 
 NS=eilandert
-PAT_FILE=/opt/packages/tools/.dockerhub-pat
+PAT_FILE=/opt/myguard/packages/tools/.dockerhub-pat
 SRC_DIR="$(cd "$(dirname "$0")/src" && pwd)"
 
 [ -r "$PAT_FILE" ] || { echo "missing $PAT_FILE" >&2; exit 1; }
